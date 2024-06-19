@@ -82,7 +82,7 @@ function randomFactions(n) {
 function generatePlayer(name, factions) {
     let bids = new Map([...factions])
     bids.forEach((_, k) => {
-        bids.set(k, randInt(0, 3))
+        bids.set(k, randInt(0, 10))
     })
     return {
         name,
@@ -91,27 +91,31 @@ function generatePlayer(name, factions) {
 }
 
 function initBidding(factions) {
-    let vvv = new Map([...factions])
-    vvv.forEach((_, k) => {
-        vvv.set(k, {
+    let bidState = new Map([...factions])
+    bidState.forEach((_, k) => {
+        bidState.set(k, {
             value: -1,
             player: undefined,
         }
         )
     })
-    let players = Array.from({ length: vvv.size }, (_, i) => generatePlayer(`Player${i + 1}`, factions))
+    let players = Array.from({ length: bidState.size }, (_, i) => generatePlayer(`Player${i + 1}`, factions))
     return {
         turn: 0,
         players,
-        bidding: vvv,
+        bidding: bidState,
     }
 }
 
 function determineBid(biddingState, player) {
+    // if you are already leading in some faction, don't bid
+    let a = Array.from(biddingState.bidding.values())
+    if (a.some((v) => v.player === player.name)) return undefined
+
     let currentBets = new Map([...biddingState.bidding])
     let dif = new Map([...player.bids])
     dif.forEach((v, k) => { dif.set(k, v - currentBets.get(k).value) })
-    currentBets.forEach((v, k) => { if (v.player === player.name) dif.delete(k) }) // remove factions where I'm already winning
+    // currentBets.forEach((v, k) => { if (v.player === player.name) dif.delete(k) }) // remove factions where I'm already winning
     dif.forEach((v, k) => { if (v === 0) dif.delete(k) }) // remove factions where I'm at my maximum
 
     const max = getMaxValue(dif)
@@ -121,6 +125,39 @@ function determineBid(biddingState, player) {
     if (dif.size === 0) return undefined
     let pick = randomMapKey(dif) // pick a random factions from the most desirable ones
     return pick.key
+}
+
+function execBid(biddingState, faction, playerName) {
+    let currentbid = biddingState.bidding.get(faction)
+    let bids = new Map([...biddingState.bidding])
+    bids.set(faction, {
+        value: currentbid.value + 1,
+        player: playerName,
+    })
+    console.log(`${playerName} bet on ${faction}`)
+    return {
+        ...biddingState,
+        turn: biddingState.turn + 1,
+        bidding: bids,
+    }
+}
+
+function testRun() {
+    let n = 3
+    let f = randomFactions(n)
+    let b = initBidding(f)
+
+    b.players.forEach((v) => console.log(v.bids))
+    let i = 0
+    while (Array.from(b.bidding.values()).some((v) => v.player === undefined)) {
+        if (i > 1000) throw new Error('Overflow')
+        let faction = determineBid(b, b.players[i % n])
+        if (faction) {
+            b = execBid(b, faction, b.players[i % n].name)
+        }
+        i += 1
+    }
+    return b
 }
 
 
